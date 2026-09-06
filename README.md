@@ -1,7 +1,7 @@
 # Shevery Debloat Manager
 
 Módulo ADB para Shevery/Shizuku.
-
+⚠️**ALTAMENTE IMPORTANTE: NÃO BAIXE O MÓDULO PELO SHEVERY ( É QUEBRADO ) EM VEZ DISSO, BAIXE PELO RELEASES DO GITHUB E NÃO CLIQUE NO CÓDIGO-FONTE**
 ## Recursos
 
 - Lista dinamicamente os pacotes do usuário 0, incluindo pacotes de sistema removidos apenas para o usuário.
