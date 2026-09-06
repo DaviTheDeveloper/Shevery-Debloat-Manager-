@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Shevery Debloat Manager</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0d10;--card:#15191f;--card2:#1c222a;--text:#f2f5f8;--muted:#9aa6b2;--accent:#62e6dc;--danger:#ff6b7a;--warn:#ffc857}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b0d10,#10141a);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}
+header{position:sticky;top:0;z-index:5;padding:18px 16px 14px;background:rgba(11,13,16,.94);backdrop-filter:blur(14px);border-bottom:1px solid #252b33}
+h1{font-size:24px;margin:0 0 5px}.sub{color:var(--muted);font-size:13px}.wrap{padding:14px;max-width:1000px;margin:auto}.toolbar{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px}
+input,select,button{font:inherit;border:1px solid #303740;background:var(--card);color:var(--text);border-radius:12px;padding:11px}button{cursor:pointer}button.primary{background:#1c4d4a;border-color:#2f8981}button.danger{border-color:#70303a;color:#ffb0b8}button:disabled{opacity:.45;cursor:not-allowed}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.stat{background:var(--card);padding:12px;border-radius:14px}.stat b{font-size:20px}.stat span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.tabs{display:flex;gap:7px;overflow:auto;padding:3px 0 10px}.tab{white-space:nowrap}.tab.active{border-color:var(--accent);color:var(--accent)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.hint{font-size:12px;color:var(--muted);line-height:1.45;margin:8px 2px 14px}
+.card{background:var(--card);border:1px solid #272e36;border-radius:16px;padding:13px;margin:8px 0}.row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.pkg{font-weight:700;word-break:break-all}.desc{font-size:12px;color:var(--muted);margin-top:4px}.badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.badge{font-size:11px;padding:4px 7px;border-radius:999px;background:#242b34;color:#c9d2db}.recommended{border-color:#2e665f}.advanced{border-color:#6a5a2d}.expert{border-color:#4b5273}.unsafe{border-color:#71313a}.state-enabled{color:#78e08f}.state-disabled{color:#ffc857}.state-uninstalled{color:#ff8793}.controls{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.small{font-size:12px;padding:8px 9px}.empty{text-align:center;color:var(--muted);padding:35px 10px}#toast{position:fixed;left:12px;right:12px;bottom:14px;background:#1c222a;border:1px solid #343c47;padding:12px;border-radius:14px;display:none;z-index:20}
+@media(max-width:650px){.stats{grid-template-columns:repeat(2,1fr)}.toolbar{grid-template-columns:1fr}}
+</style></head>
+<body>
+<header><h1>Shevery Debloat Manager</h1><div class="sub">ADB/Shizuku • classificação dinâmica • filtros por risco e estado</div></header>
+<div class="wrap">
+<div class="toolbar"><input id="search" placeholder="Pesquisar pacote, nome ou função..."><select id="state"><option value="all">Todos os estados</option><option value="installed">Instalado/ativado</option><option value="disabled">Desativado</option><option value="uninstalled">Desinstalado</option></select></div>
+<div class="tabs" id="tabs"></div>
+<div class="stats"><div class="stat"><b id="nAll">0</b><span>Visíveis</span></div><div class="stat"><b id="nEnabled">0</b><span>Ativados</span></div><div class="stat"><b id="nDisabled">0</b><span>Desativados</span></div><div class="stat"><b id="nUninstalled">0</b><span>Desinstalados</span></div></div>
+<div class="actions"><button class="primary" onclick="refresh()">↻ Atualizar</button><button onclick="bulk('disable')">Desativar elegíveis</button><button class="danger" onclick="bulk('uninstall')">Desinstalar elegíveis</button><button onclick="bulk('restore')">Restaurar elegíveis</button></div>
+<div class="hint"><b>Recomendado</b>: apps instalados pelo usuário (terceiros). <b>Avançado</b>: bloat/recursos opcionais do fabricante conhecidos ou identificados como não centrais. <b>Esperto</b>: apps de sistema que exigem revisão porque podem remover funções usadas. <b>Inseguro</b>: componentes críticos/protegidos, sem ações destrutivas. A desinstalação de um app do usuário pode apagar o APK e não é restaurável com <code>install-existing</code>; para esses apps, prefira desativar se quiser reversibilidade.</div>
+<div id="list"></div></div><div id="toast"></div>
+<script>
+let all=[], category='Todos', catalog={}, protectedPkgs=[];
+const $=id=>document.getElementById(id);
+const CATEGORY_ORDER=['Recomendado','Avançado','Esperto','Inseguro'];
+const OEM_PREFIXES={
+  samsung:['com.samsung.','com.sec.'],xiaomi:['com.miui.','com.xiaomi.','com.mi.'],redmi:['com.miui.','com.xiaomi.','com.mi.'],poco:['com.miui.','com.xiaomi.','com.mi.'],
+  huawei:['com.huawei.'],honor:['com.hihonor.','com.huawei.'],oppo:['com.oppo.','com.coloros.'],oneplus:['com.oneplus.','com.oplus.'],realme:['com.realme.','com.oplus.'],
+  vivo:['com.vivo.'],iqoo:['com.iqoo.','com.vivo.'],motorola:['com.motorola.'],lenovo:['com.lenovo.'],asus:['com.asus.'],sony:['com.sony.'],lg:['com.lge.','com.lg.'],
+  tecno:['com.transsion.','com.tecno.'],infinix:['com.transsion.','com.infinix.'],itel:['com.transsion.','com.itel.'],nothing:['com.nothing.'],zte:['com.zte.'],meizu:['com.meizu.'],htc:['com.htc.']
+};
+const CORE_TOKENS=['systemui','settings','framework','provider','permission','packageinstaller','installer','telecom','telephony','phone','dialer','contacts','messaging','launcher','home','keyboard','inputmethod','security','lockscreen','keyguard','biometric','fingerprint','credential','network','wifi','bluetooth','location','nfc','camera','media','download','storage','documentsui','emergency','ims','ril','server','shell'];
+function toast(s){$('toast').textContent=s;$('toast').style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>$('toast').style.display='none',3500)}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function sh(cmd){try{return JSON.parse(await window.Shizuku.exec(cmd))}catch(e){return {ok:false,exitCode:-1,stdout:'',stderr:String(e)}}}
+function parsePackages(stdout){return new Set((stdout||'').split(/\r?\n/).map(x=>x.replace(/^package:/,'').trim()).filter(Boolean))}
+async function loadCatalog(){const r=await fetch('../data/catalog.json');catalog=await r.json();const p=await fetch('../data/protected.json');protectedPkgs=await p.json()}
+function catalogEntry(pkg){for(const c of CATEGORY_ORDER)if(catalog[c]&&catalog[c][pkg])return [c,catalog[c][pkg]];return null}
+function normalizedMaker(s){return (s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'')}
+function manufacturerPrefixes(maker,brand){const a=normalizedMaker(maker),b=normalizedMaker(brand);for(const [key,prefixes] of Object.entries(OEM_PREFIXES))if(a.includes(key)||b.includes(key))return prefixes;return []}
+function isCoreLike(pkg){const parts=pkg.toLowerCase().split(/[._-]/);return CORE_TOKENS.some(t=>parts.includes(t)||pkg.toLowerCase().includes('.'+t+'.')||pkg.toLowerCase().endsWith('.'+t))}
+function classify(pkg,meta){
+  if(protectedPkgs.includes(pkg))return ['Inseguro','Função: '+functionLabel(pkg,meta,'Componente crítico/protegido do Android ou dos serviços essenciais.')];
+  const known=catalogEntry(pkg);
+  const base=known?known[1]:null;
+  if(meta.isThirdParty)return ['Recomendado','Função: '+functionLabel(pkg,meta,base||'')];
+  if(known)return [known[0],'Função: '+functionLabel(pkg,meta,base)];
+  if(meta.isSystem&&meta.isManufacturer&&!isCoreLike(pkg))return ['Avançado','Função: '+functionLabel(pkg,meta,'Componente de sistema do fabricante; revise a função antes de remover.')];
+  if(meta.isSystem)return ['Esperto','Função: '+functionLabel(pkg,meta,'App/componente de sistema não catalogado; pode afetar recursos do aparelho.')];
+  return ['Recomendado','Função: '+functionLabel(pkg,meta,'App do usuário detectado fora da partição de sistema.')];
+}
+
+function functionLabel(pkg,meta,base){
+  const p=pkg.toLowerCase();
+  const rules=[
+    [/launcher|oneui.home|trebuchet|pixel.launcher/,'Tela inicial / lançador de aplicativos'],
+    [/keyboard|inputmethod|ime|gboard/,'Teclado e método de entrada'],
+    [/camera|camerax|sec.android.app.camera/,'Câmera e recursos fotográficos'],
+    [/gallery|photos|gallery3d/,'Galeria e gerenciamento de fotos e vídeos'],
+    [/browser|chrome|firefox|brave|sbrowser/,'Navegador de internet'],
+    [/dialer|telecom|phone|incall|contacts/,'Telefone, chamadas e contatos'],
+    [/mms|messaging|sms|messenger/,'Mensagens SMS/MMS'],
+    [/calendar|agenda/,'Calendário e eventos'],
+    [/clock|alarm|deskclock/,'Relógio, alarmes e temporizadores'],
+    [/calculator|calc/,'Calculadora'],
+    [/filemanager|documentsui|files/,'Arquivos e gerenciamento de armazenamento'],
+    [/settings|settingsprovider/,'Configurações e preferências do sistema'],
+    [/systemui/,'Interface visual e barra de status do Android'],
+    [/packageinstaller|packageinstaller/,'Instalação e gerenciamento de aplicativos'],
+    [/permission|permissioncontroller/,'Gerenciamento de permissões dos aplicativos'],
+    [/bluetooth/,'Bluetooth e conexões de dispositivos'],
+    [/wifi|wifiservice/,'Wi‑Fi e conectividade sem fio'],
+    [/nfc/,'NFC e pagamentos por aproximação'],
+    [/location|fusedlocation|gps/,'Localização e serviços de localização'],
+    [/backup|restore/,'Backup e restauração de dados'],
+    [/update|updater|ota/,'Atualização do sistema'],
+    [/security|knox/,'Segurança do dispositivo'],
+    [/googlequicksearch|search/,'Pesquisa, assistente e integração de busca'],
+    [/youtube/,'Reprodução e gerenciamento de vídeos do YouTube'],
+    [/maps/,'Mapas, navegação e localização'],
+    [/gmail|email/,'E-mail e gerenciamento de mensagens eletrônicas'],
+    [/drive/,'Armazenamento e sincronização de arquivos na nuvem'],
+    [/playstore|vending/,'Loja e instalação de aplicativos'],
+    [/bixby/,'Assistente de voz e automação da Samsung'],
+    [/smartthings|oneconnect/,'Controle e integração de dispositivos inteligentes'],
+    [/game/,'Recursos e serviços para jogos'],
+    [/wearable|watchmanager/,'Integração com relógios e dispositivos vestíveis'],
+    [/arzone|aremoji|ardrawing|facearavatar/,'Recursos de realidade aumentada e câmera'],
+    [/dex/,'Samsung DeX e experiência de desktop'],
+    [/health/,'Serviços e recursos de saúde do fabricante']
+  ];
+  for(const [re,desc] of rules)if(re.test(p))return desc;
+  if(base&&!/^App\/componente/.test(base))return base;
+  if(meta.isThirdParty)return 'Aplicativo instalado pelo usuário; a função depende do aplicativo.';
+  if(meta.isManufacturer)return 'Componente do sistema do fabricante; consulte o nome do pacote antes de remover.';
+  return 'Componente do sistema Android; pode fornecer serviços necessários a outros aplicativos.';
+}
+
+function filtered(){const q=$('search').value.trim().toLowerCase(),st=$('state').value;return all.filter(x=>(category==='Todos'||x.cat===category)&&(!q||(x.pkg+' '+x.desc+' '+x.kind).toLowerCase().includes(q))&&(st==='all'||x.state===st))}
+function eligible(op,x){if(x.protected)return false;if(op==='disable')return x.state==='installed';if(op==='uninstall')return x.state!=='uninstalled';if(op==='restore')return x.state==='uninstalled'&&x.isSystem;return false}
+async function refresh(){
+  $('list').innerHTML='<div class="empty">Lendo pacotes e classificando o dispositivo…</div>';
+  const [allR,instR,disabledR,userR,systemR,makerR,brandR]=await Promise.all([
+    sh('cmd package list packages -u --user 0'),sh('cmd package list packages --user 0'),sh('cmd package list packages -d --user 0'),
+    sh('cmd package list packages -3 -u --user 0'),sh('cmd package list packages -s -u --user 0'),sh('getprop ro.product.manufacturer'),sh('getprop ro.product.brand')
+  ]);
+  if(!allR.ok){$('list').innerHTML='<div class="empty">Falha ao listar pacotes.<br>'+esc(allR.stderr||allR.stdout)+'</div>';return}
+  const packages=parsePackages(allR.stdout),installed=parsePackages(instR.stdout),disabled=parsePackages(disabledR.stdout),thirdParty=parsePackages(userR.stdout),system=parsePackages(systemR.stdout);
+  const maker=(makerR.stdout||'').trim(),brand=(brandR.stdout||'').trim(),prefixes=manufacturerPrefixes(maker,brand);
+  all=[...packages].sort().map(pkg=>{
+    const isSystem=system.has(pkg),isThirdParty=thirdParty.has(pkg)||(!isSystem&&installed.has(pkg));
+    const isManufacturer=isSystem&&prefixes.some(p=>pkg.startsWith(p));
+    const [cat,desc]=classify(pkg,{isSystem,isThirdParty,isManufacturer});
+    const state=!installed.has(pkg)?'uninstalled':disabled.has(pkg)?'disabled':'installed';
+    return {pkg,cat,desc,state,isSystem,isThirdParty,isManufacturer,protected:protectedPkgs.includes(pkg),kind:isThirdParty?'App do usuário':isManufacturer?'Sistema • fabricante':'Sistema'};
+  });
+  render();
+}
+function renderTabs(){const counts=Object.fromEntries(CATEGORY_ORDER.map(c=>[c,all.filter(x=>x.cat===c).length]));const cats=['Todos',...CATEGORY_ORDER];$('tabs').innerHTML=cats.map(c=>{const n=c==='Todos'?all.length:counts[c];return `<button class="tab ${category===c?'active':''}" onclick="category='${c}';render()">${c} (${n})</button>`}).join('')}
+function render(){
+  renderTabs();const visible=filtered();$('nAll').textContent=visible.length;$('nEnabled').textContent=visible.filter(x=>x.state==='installed').length;$('nDisabled').textContent=visible.filter(x=>x.state==='disabled').length;$('nUninstalled').textContent=visible.filter(x=>x.state==='uninstalled').length;
+  if(!visible.length){$('list').innerHTML='<div class="empty">Nenhum pacote corresponde aos filtros selecionados.</div>';return}
+  $('list').innerHTML=visible.map(x=>{
+    const cls=x.cat==='Recomendado'?'recommended':x.cat==='Avançado'?'advanced':x.cat==='Inseguro'?'unsafe':'expert';
+    const stateText=x.state==='installed'?'Instalado/ativado':x.state==='disabled'?'Desativado':'Desinstalado';
+    return `<div class="card ${cls}"><div class="row"><div><div class="pkg">${esc(x.pkg)}</div><div class="desc">${esc(x.desc)}</div></div><span class="badge">${stateText}</span></div><div class="badges"><span class="badge">${x.cat}</span><span class="badge">${esc(x.kind)}</span>${x.protected?'<span class="badge">Protegido</span>':''}</div><div class="controls">
+      ${x.state==='installed'&&!x.protected?`<button class="small" onclick="act('${x.pkg}','disable')">Desativar</button>`:''}
+      ${x.state==='disabled'&&!x.protected?`<button class="small" onclick="act('${x.pkg}','enable')">Ativar</button>`:''}
+      ${x.state!=='uninstalled'&&!x.protected?`<button class="small danger" onclick="act('${x.pkg}','uninstall')">Desinstalar</button>`:''}
+      ${x.state==='uninstalled'&&x.isSystem&&!x.protected?`<button class="small" onclick="act('${x.pkg}','restore')">Restaurar</button>`:''}
+    </div></div>`
+  }).join('')
+}
+async function act(pkg,op){
+  const x=all.find(v=>v.pkg===pkg);if(!x||x.protected){toast('Pacote protegido.');return}
+  if(op==='restore'&&!x.isSystem){toast('Apps do usuário removidos não podem ser restaurados com install-existing.');return}
+  const cmds={disable:`pm disable-user --user 0 ${pkg}`,enable:`pm enable --user 0 ${pkg}`,uninstall:`pm uninstall -k --user 0 ${pkg}`,restore:`pm install-existing --user 0 ${pkg}`};
+  const verb=op==='uninstall'?'Desinstalar':op==='disable'?'Desativar':op==='restore'?'Restaurar':'Ativar';
+  const extra=op==='uninstall'&&x.isThirdParty?'\n\nAtenção: este é um app do usuário e pode não ser restaurável por este módulo.':'';
+  if(!confirm(`${verb} ${pkg}?${extra}`))return;const r=await sh(cmds[op]);toast(r.ok?(r.stdout||'Concluído'):(r.stderr||r.stdout||'Falhou'));await refresh()
+}
+async function bulk(op){
+  const targets=filtered().filter(x=>eligible(op,x));if(!targets.length){toast('Nenhum pacote elegível nos filtros atuais.');return}
+  const label=op==='uninstall'?'DESINSTALAR':op==='disable'?'DESATIVAR':'RESTAURAR';
+  const userApps=op==='uninstall'?targets.filter(x=>x.isThirdParty).length:0;const warning=userApps?`\n\n${userApps} app(s) do usuário podem não ser restauráveis pelo módulo.`:'';
+  if(!confirm(`${label} ${targets.length} pacote(s) elegível(is) nos filtros atuais?${warning}`))return;
+  let ok=0;for(const x of targets){const cmd=op==='disable'?`pm disable-user --user 0 ${x.pkg}`:op==='uninstall'?`pm uninstall -k --user 0 ${x.pkg}`:`pm install-existing --user 0 ${x.pkg}`;const r=await sh(cmd);if(r.ok)ok++}
+  toast(`${ok}/${targets.length} ações concluídas.`);await refresh()
+}
+$('search').addEventListener('input',render);$('state').addEventListener('change',render);(async()=>{try{await loadCatalog();await refresh()}catch(e){toast(String(e))}})();
+</script></body></html>
+  
