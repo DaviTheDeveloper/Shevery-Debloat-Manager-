@@ -1,0 +1,15 @@
+{
+  "package": "string",
+  "category": [
+    "Recomendado",
+    "Avançado",
+    "Esperto",
+    "Inseguro"
+  ],
+  "state": [
+    "installed",
+    "disabled",
+    "uninstalled"
+  ],
+  "description": "string"
+}
