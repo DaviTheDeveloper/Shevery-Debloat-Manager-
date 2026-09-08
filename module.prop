@@ -1,7 +1,7 @@
 id=shevery-debloat-manager
 name=Shevery Debloat Manager
-version=1.2.0
-versionCode=3
+version=1.2.1
+versionCode=4
 author=Davi
 description=ADB/Shizuku debloat manager with working package actions, permission diagnostics, dynamic classification and safer bulk actions.
 banner=banner.png

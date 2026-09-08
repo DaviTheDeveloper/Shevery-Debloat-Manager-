@@ -40,3 +40,12 @@ Apps instalados pelo usuário são classificados como **Recomendado** por serem 
 - Pacote de sistema desinstalado apenas para o usuário -> `pm install-existing --user 0 pacote`
 
 O módulo não apaga fisicamente APKs da partição de sistema.
+
+
+## Correções de segurança e robustez — 1.2.1
+
+- Comandos `pm` recebem os identificadores de pacote com quoting seguro antes de serem enviados ao shell.
+- A interface não injeta nomes de pacotes em handlers `onclick`; os botões usam índices internos e listeners.
+- A ponte `window.Shizuku.exec()` aceita respostas em objeto ou JSON e falha de forma controlada quando a resposta é inválida.
+- Catálogo e lista de proteção são validados durante o carregamento e erros HTTP não são silenciosamente aceitos.
+- Ações recebidas pela interface passam por uma lista explícita de operações permitidas.
