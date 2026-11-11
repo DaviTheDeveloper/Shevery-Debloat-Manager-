@@ -1,51 +1,51 @@
-# Shevery Debloat Manager
+Shevery Debloat Manager
 
-Módulo ADB para Shevery/Shizuku.
-## Recursos
+ADB module for Shevery/Shizuku.
+## Resources
 
-- Lista dinamicamente os pacotes do usuário 0, incluindo pacotes de sistema removidos apenas para o usuário.
-- Classificação dinâmica por origem e risco:
-  - **Recomendado**: apps instalados pelo usuário/terceiros.
-  - **Avançado**: bloat e componentes opcionais conhecidos do fabricante, além de componentes OEM não centrais detectados dinamicamente.
-  - **Esperto**: apps/componentes de sistema que exigem revisão porque podem remover funções usadas.
-  - **Inseguro**: componentes críticos/protegidos, bloqueados para ações destrutivas.
-- Detecta o fabricante por `ro.product.manufacturer` e `ro.product.brand` e reconhece namespaces OEM comuns.
-- Pesquisa e filtros por categoria e estado:
-  - Instalado/ativado
-  - Desativado
-  - Desinstalado
-- Contadores por categoria e pelos filtros atualmente aplicados.
-- Desativar, ativar, desinstalar e restaurar pacotes compatíveis.
-- Ações em massa somente sobre pacotes realmente elegíveis nos filtros atuais.
-- Proteção contra ações destrutivas em componentes críticos.
-- Catálogo local em `data/catalog.json` usado para exceções/descrições conhecidas.
-- Usa `pm uninstall -k --user 0` e, para pacotes de sistema ainda existentes, `pm install-existing --user 0`.
-- Sem root obrigatório: usa a ponte WebUI do Shevery com Shizuku ativo.
+- Dynamically lists user 0 packages, including system packages removed only for the user.
+Dynamic classification by origin and risk:
+- **Recommended**: apps installed by the user/third parties.
+- **Advanced**: bloat and optional components known to the manufacturer, as well as dynamically detected non-core OEM components.
+- **Smart**: apps/system components that require review because they can remove functions used.
+- **Unsafe**: critical/protected components, blocked for destructive actions.
+- Detects the manufacturer by 'ro.product.manufacturer' and 'ro.product.brand' and recognizes common OEM namespaces.
+- Search and filters by category and status:
+- Installed/activated
+- Deactivated
+- Uninstalled
+- Counters by category and by filters currently applied.
+- Disable, activate, uninstall, and restore compatible packages.
+- Mass actions only on truly eligible packages in current filters.
+- Protection against destructive actions in critical components.
+- Local catalog in 'data/catalog.json' used for known exceptions/descriptions.
+- Uses 'pm uninstall -k --user 0' and, for existing system packages, 'pm install-existing --user 0'.
+- No root required: Uses Shevery's WebUI bridge with active Shizuku.
 
-## Estrutura
+## Structure
 
-`module.prop`, `action.sh`, `banner.png`, `data/` e `webui/index.html`.
+'module.prop', 'action.sh', 'banner.png', 'data/' and 'webui/index.html'.
 
-O formato segue a documentação oficial do Shevery: `module.prop` na raiz, WebUI em `webui/index.html` e `usesShellBridge=true` para acesso a `window.Shizuku`.
+The format follows the official Shevery documentation: 'module.prop' at the root, WebUI in 'webui/index.html', and 'usesShellBridge=true' for access to 'window. Shizuku'.
 
-## Importante
+## Important
 
-A categoria indica o nível recomendado de atenção, não uma garantia universal de que remover um pacote seja seguro em todo aparelho/ROM. Pacotes OEM desconhecidos com sinais de função central ficam em **Esperto**, não em **Avançado**.
+The category indicates the recommended level of attention, not a universal guarantee that removing a package is safe on every device/ROM. Unknown OEM packages with central function signals are in **Smart**, not **Advanced**.
 
-Apps instalados pelo usuário são classificados como **Recomendado** por serem apps não pertencentes ao sistema, mas a desinstalação deles pode remover o APK completamente. Nesse caso, `pm install-existing` normalmente não consegue restaurá-los. Para manter reversibilidade, prefira **Desativar**.
+Apps installed by the user are classified as **Recommended** because they are non-system apps, but uninstalling them can remove the APK altogether. In this case, 'pm install-existing' usually cannot restore them. To maintain reversibility, prefer **Disable**.
 
-## Recuperação
+## Recovery
 
-- Desativado -> `pm enable --user 0 pacote`
-- Pacote de sistema desinstalado apenas para o usuário -> `pm install-existing --user 0 pacote`
+- Disabled -> 'pm enable --user 0 package'
+- System package uninstalled only for the user -> 'pm install-existing --user 0 package'
 
-O módulo não apaga fisicamente APKs da partição de sistema.
+The module does not physically erase APKs from the system partition.
 
 
-## Correções de segurança e robustez — 1.2.1
+## Safety and robustness fixes - 1.2.1
 
-- Comandos `pm` recebem os identificadores de pacote com quoting seguro antes de serem enviados ao shell.
-- A interface não injeta nomes de pacotes em handlers `onclick`; os botões usam índices internos e listeners.
-- A ponte `window.Shizuku.exec()` aceita respostas em objeto ou JSON e falha de forma controlada quando a resposta é inválida.
-- Catálogo e lista de proteção são validados durante o carregamento e erros HTTP não são silenciosamente aceitos.
-- Ações recebidas pela interface passam por uma lista explícita de operações permitidas.
+- 'pm' commands receive the package identifiers with secure quoting before they are sent to the shell.
+The interface does not inject package names into onclick handlers; the buttons use internal indexes and listeners.
+- The window bridge. Shizuku.exec() accepts in object or JSON responses and fails in a controlled manner when the response is invalid.
+Catalog and protection list are validated during loading and HTTP errors are not silently accepted.
+- Actions received by the interface go through an explicit list of permitted operations.
