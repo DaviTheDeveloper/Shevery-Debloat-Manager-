@@ -1,10 +1,10 @@
 {
   "package": "string",
   "category": [
-    "Recomendado",
-    "Avançado",
-    "Esperto",
-    "Inseguro"
+    "Recommended",
+    "Advanced",
+    "Expert",
+    "Unsafe"
   ],
   "state": [
     "installed",
